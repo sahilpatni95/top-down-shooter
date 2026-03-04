@@ -1,4 +1,4 @@
-# Top-Down Shooter - claude --resume db56cd8a-d2d6-4606-a8a6-c49de844d021
+# Top-Down Shooter
 
 A browser-based top-down shooter built entirely in a single HTML file — no frameworks, no bundlers, no dependencies. Just open `shooter.html` and play.
 
@@ -54,7 +54,7 @@ A browser-based top-down shooter built entirely in a single HTML file — no fra
 1. Clone or download the repository
 2. Open `shooter.html` in any modern browser (Chrome, Firefox, Edge, Safari)
 3. Customise your settings in the panel at the bottom of the screen
-4. Click the canvas or press **Enter** to start
+4. Click the canvas or press **Enter** to start (tap the canvas on mobile)
 5. Survive as many waves as possible and maximise your score
 
 No server, build step, or installation required.
@@ -221,7 +221,7 @@ All game systems live inside `shooter.html`:
 
 ```
 shooter.html
-├── <style>          — Canvas layout + settings panel CSS
+├── <style>          — Canvas layout, touch-action:none, responsive settings panel (media queries for phone/tablet)
 ├── <canvas>         — Game viewport (800×600)
 ├── <div#settings>   — Settings panel (name, bg, difficulty, volume, colour)
 └── <script>
@@ -230,8 +230,8 @@ shooter.html
     ├── AUDIO        — Web Audio API procedural SFX
     ├── LEADERBOARD  — localStorage persistence, rankColor/rankLabel, drawLeaderboardPanel
     ├── SCORE POPUPS — floating kill-reward text system
-    ├── GAME STATE   — State machine (MENU / PLAYING / GAME_OVER), killCount, playerRank
-    ├── INPUT        — Keyboard and mouse handlers
+    ├── GAME STATE   — State machine (MENU / PLAYING / GAME_OVER), killCount, playerRank, joystick object
+    ├── INPUT        — Keyboard, mouse, and touch handlers (handleTouches, touchstart/move/end)
     ├── BACKGROUNDS  — Four theme renderers
     ├── WAVE DEFS    — Wave progression table + infinite scaler
     ├── ENTITY DEFS  — Enemy base stats
@@ -243,7 +243,7 @@ shooter.html
     ├── COLLISION    — Circle-circle detection, damage, death, kill counting, score popups
     ├── WAVE MANAGER — Spawn timer, clearing logic
     ├── HUD          — HP bar, score, kill counter, wave counter + progress bar, banner with glow
-    ├── SCREENS      — Menu (two-panel: controls + HALL OF FAME) and Game Over (stats grid + rank badge + leaderboard)
+    ├── SCREENS      — Menu (two-panel: controls + HALL OF FAME), Game Over (stats grid + rank badge + leaderboard), drawJoystick()
     └── GAME LOOP    — requestAnimationFrame loop with deltaTime cap
 ```
 
