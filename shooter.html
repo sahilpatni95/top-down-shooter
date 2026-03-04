@@ -379,6 +379,133 @@ function playGameOver() {
 }
 
 // ============================================================
+// LEADERBOARD
+// ============================================================
+const LB_KEY = 'tds_leaderboard_v1';
+
+function getLeaderboard() {
+  try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveToLeaderboard(name, score, wave, kills, difficulty) {
+  const lb = getLeaderboard();
+  const entry = { name: name || 'Player', score, wave, kills, difficulty };
+  lb.push(entry);
+  lb.sort((a, b) => b.score - a.score);
+  const rank = lb.indexOf(entry);
+  lb.splice(10);
+  localStorage.setItem(LB_KEY, JSON.stringify(lb));
+  return rank < 10 ? rank : -1;
+}
+
+function rankColor(rank) {
+  if (rank === 0) return '#ffd700';
+  if (rank === 1) return '#c0c0c0';
+  if (rank === 2) return '#cd7f32';
+  return '#667788';
+}
+
+function rankLabel(rank) { return `#${rank + 1}`; }
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawLeaderboardPanel(px, py, pw, title, maxRows, highlightRank) {
+  const lb = getLeaderboard();
+  const rows = Math.min(lb.length, maxRows);
+  const rowH = 21;
+  const emptyExtra = lb.length === 0 ? rowH + 4 : 0;
+  const ph = 38 + rowH + rows * rowH + emptyExtra + 8;
+
+  ctx.save();
+  roundRect(px, py, pw, ph, 8);
+  ctx.fillStyle = 'rgba(5,10,30,0.92)';
+  ctx.fill();
+  ctx.strokeStyle = '#1e3a5f';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Title
+  ctx.fillStyle = '#44aaff';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(title, px + pw / 2, py + 22);
+
+  // Separator
+  ctx.strokeStyle = '#1e3a5f';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(px + 8, py + 30);
+  ctx.lineTo(px + pw - 8, py + 30);
+  ctx.stroke();
+
+  // Column headers
+  const chy = py + 46;
+  ctx.fillStyle = '#445566';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('RANK', px + 8,        chy);
+  ctx.fillText('NAME', px + 46,       chy);
+  ctx.fillText('SCORE', px + pw*0.52, chy);
+  ctx.fillText('WV',   px + pw - 36,  chy);
+  ctx.fillText('D',    px + pw - 16,  chy);
+
+  const dataStartY = chy + 6;
+
+  if (lb.length === 0) {
+    ctx.fillStyle = '#445566';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No scores yet — be first!', px + pw / 2, dataStartY + 16);
+  } else {
+    for (let i = 0; i < rows; i++) {
+      const e  = lb[i];
+      const ry = dataStartY + i * rowH + 15;
+
+      if (i === highlightRank) {
+        roundRect(px + 4, dataStartY + i * rowH + 1, pw - 8, rowH - 2, 3);
+        ctx.fillStyle = 'rgba(255,215,0,0.15)';
+        ctx.fill();
+      }
+
+      ctx.fillStyle = rankColor(i);
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(rankLabel(i), px + 8, ry);
+
+      ctx.fillStyle = i === highlightRank ? '#ffd700' : '#99bbcc';
+      ctx.font = '11px monospace';
+      ctx.fillText((e.name || 'Player').slice(0, 7), px + 46, ry);
+
+      ctx.fillStyle = '#ffee44';
+      ctx.textAlign = 'right';
+      ctx.fillText(e.score.toString(), px + pw * 0.52 + 38, ry);
+
+      ctx.fillStyle = '#aaaacc';
+      ctx.textAlign = 'left';
+      ctx.fillText(e.wave.toString(), px + pw - 36, ry);
+
+      const dc = { easy: '#44ff88', normal: '#44aaff', hard: '#ff4444' }[e.difficulty] || '#667788';
+      ctx.fillStyle = dc;
+      ctx.fillText((e.difficulty || '?')[0].toUpperCase(), px + pw - 16, ry);
+    }
+  }
+  ctx.restore();
+}
+
+// ============================================================
 // GAME STATE
 // ============================================================
 const STATE = { MENU: 0, PLAYING: 1, GAME_OVER: 2 };
@@ -516,11 +643,45 @@ const ENEMY_DEF = {
 };
 
 // ============================================================
+// SCORE POPUPS
+// ============================================================
+let scorePopups = [];
+
+function spawnScorePopup(x, y, text, color) {
+  scorePopups.push({ x, y, text, color, alpha: 1, vy: -55, life: 1.1 });
+}
+
+function updateScorePopups(dt) {
+  for (const p of scorePopups) {
+    p.y  += p.vy * dt;
+    p.life -= dt;
+    p.alpha = Math.max(0, p.life / 1.1);
+  }
+  scorePopups = scorePopups.filter(p => p.life > 0);
+}
+
+function drawScorePopups() {
+  ctx.save();
+  ctx.font = 'bold 15px monospace';
+  ctx.textAlign = 'center';
+  for (const p of scorePopups) {
+    ctx.globalAlpha = p.alpha;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur  = 8;
+    ctx.fillStyle   = p.color;
+    ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.restore();
+}
+
+// ============================================================
 // GAME VARIABLES
 // ============================================================
 let player, bullets, enemies, particles;
 let score, waveNumber, screenShake, finalScore;
 let waveSpawnTimer, waveEnemiesLeft, waveClearing, waveBannerTimer;
+let killCount, playerRank;
+let waveEnemiesTotal;
 
 // ============================================================
 // GAME INIT
@@ -536,6 +697,9 @@ function startGame() {
   particles   = [];
   waveBannerTimer = 0;
   waveClearing    = false;
+  killCount       = 0;
+  playerRank      = -1;
+  scorePopups     = [];
   settingsEl.classList.add('hidden');
 
   player = {
@@ -553,16 +717,18 @@ function startGame() {
 function startNextWave() {
   waveNumber++;
   const def = getWaveDef(waveNumber);
-  waveEnemiesLeft = def.count;
-  waveSpawnTimer  = 0;
-  waveClearing    = false;
-  waveBannerTimer = 2000;
+  waveEnemiesLeft  = def.count;
+  waveEnemiesTotal = def.count;
+  waveSpawnTimer   = 0;
+  waveClearing     = false;
+  waveBannerTimer  = 2000;
   playWaveStart();
 }
 
 function endGame() {
   state      = STATE.GAME_OVER;
   finalScore = score;
+  playerRank = saveToLeaderboard(settings.name, score, waveNumber, killCount, settings.difficulty);
   playGameOver();
 }
 
@@ -757,6 +923,9 @@ function handleCollisions() {
         e.hp -= b.damage; hit = true;
         if (e.hp <= 0) {
           score += e.reward;
+          killCount++;
+          const popColors = { grunt: '#ffffff', fast: '#ffaa44', tank: '#cc88ff' };
+          spawnScorePopup(e.x, e.y - e.radius - 8, `+${e.reward}`, popColors[e.type] || '#ffffff');
           playEnemyDeath(e.type);
           spawnParticles(e.x, e.y, e.color, 14, 4, 0.025);
           spawnParticles(e.x, e.y, '#ffffff', 6, 6, 0.04);
@@ -808,11 +977,15 @@ function drawHUD() {
   const ratio = player.hp / player.maxHp;
   const barColor = ratio < 0.3 ? '#ff2222' : ratio < 0.6 ? '#ffaa00' : '#44ff88';
 
+  // HP panel backing
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(barX - 4, barY - 20, barW + 50, barH + 24);
+
   ctx.fillStyle = '#1a1a2a'; ctx.fillRect(barX, barY, barW, barH);
   ctx.fillStyle = barColor;  ctx.fillRect(barX, barY, barW * ratio, barH);
   ctx.strokeStyle = '#445'; ctx.lineWidth = 1; ctx.strokeRect(barX, barY, barW, barH);
   ctx.fillStyle = '#fff'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  ctx.fillText(`HP  ${player.hp} / ${player.maxHp}`, barX + 4, barY + 12);
+  ctx.fillText(`HP  ${Math.ceil(player.hp)} / ${player.maxHp}`, barX + 4, barY + 12);
 
   // Player name
   ctx.fillStyle = settings.playerColor;
@@ -824,15 +997,30 @@ function drawHUD() {
   ctx.fillStyle = dc; ctx.font = '10px monospace';
   ctx.fillText(settings.difficulty.toUpperCase(), barX + barW + 8, barY + 12);
 
-  // Score
+  // Score + kill panel backing
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(W - 180, 4, 176, 46);
+
   ctx.fillStyle = '#ffee44'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'right';
   ctx.fillText(`Score: ${score}`, W - 10, 26);
+  ctx.fillStyle = '#aaaacc'; ctx.font = '12px monospace';
+  ctx.fillText(`Kills: ${killCount}`, W - 10, 44);
 
-  // Wave / enemies
+  // Wave counter + progress bar
   ctx.fillStyle = '#aaaacc'; ctx.font = '14px monospace'; ctx.textAlign = 'center';
   ctx.fillText(`Wave ${waveNumber}`, W/2, 22);
-  ctx.fillStyle = '#667788'; ctx.font = '12px monospace';
-  ctx.fillText(`Enemies: ${enemies.length + waveEnemiesLeft}`, W/2, 40);
+
+  // Wave progress bar
+  const totalSpawned = waveEnemiesTotal - waveEnemiesLeft;
+  const killed = totalSpawned - enemies.length;
+  const progress = waveEnemiesTotal > 0 ? Math.max(0, Math.min(1, killed / waveEnemiesTotal)) : 0;
+  const pbW = 140, pbH = 5, pbX = W/2 - pbW/2, pbY = 28;
+  ctx.fillStyle = '#1a1a2a';  ctx.fillRect(pbX, pbY, pbW, pbH);
+  ctx.fillStyle = '#44aaff';  ctx.fillRect(pbX, pbY, pbW * progress, pbH);
+  ctx.strokeStyle = '#334'; ctx.lineWidth = 1; ctx.strokeRect(pbX, pbY, pbW, pbH);
+
+  ctx.fillStyle = '#556677'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(`${enemies.length + waveEnemiesLeft} remaining`, W/2, 50);
 
   // Wave banner
   if (waveBannerTimer > 0) {
@@ -840,10 +1028,11 @@ function drawHUD() {
     const alpha = t < 0.25 ? t/0.25 : t > 0.75 ? (1-t)/0.25 : 1;
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(W/2-140, H/2-44, 280, 76);
     ctx.strokeStyle = '#ffdd44'; ctx.lineWidth = 2;
     ctx.strokeRect(W/2-140, H/2-44, 280, 76);
+    ctx.shadowColor = '#ffdd44'; ctx.shadowBlur = 18;
     ctx.fillStyle = '#ffdd44'; ctx.font = 'bold 36px monospace'; ctx.textAlign = 'center';
     ctx.fillText(`WAVE ${waveNumber}`, W/2, H/2 + 14);
     ctx.restore();
@@ -856,40 +1045,99 @@ function drawHUD() {
 // ============================================================
 function drawMenu() {
   drawBackground();
-  ctx.fillStyle = 'rgba(0,0,0,0.52)';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, 0, W, H);
 
+  // Glowing title
+  ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#44aaff';
-  ctx.font = 'bold 50px monospace';
-  ctx.fillText('TOP-DOWN SHOOTER', W/2, 110);
+  ctx.shadowColor = '#44aaff'; ctx.shadowBlur = 30;
+  ctx.fillStyle = '#44aaff'; ctx.font = 'bold 46px monospace';
+  ctx.fillText('TOP-DOWN SHOOTER', W/2, 58);
+  ctx.restore();
 
-  ctx.strokeStyle = '#2255aa'; ctx.lineWidth = 2;
-  ctx.strokeRect(W/2 - 262, 88, 524, 3);
+  ctx.fillStyle = '#445566'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('Survive endless waves · Score as high as you can', W/2, 78);
 
-  ctx.fillStyle = '#99aabb'; ctx.font = '15px monospace';
-  ctx.fillText('Survive endless waves · Score as high as you can', W/2, 160);
+  // ── Left panel: controls ──
+  const lx = 18, ly = 94, lw = 350, lh = 358;
+  ctx.save();
+  roundRect(lx, ly, lw, lh, 8);
+  ctx.fillStyle = 'rgba(5,10,30,0.88)';
+  ctx.fill();
+  ctx.strokeStyle = '#1e3a5f'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.restore();
 
-  // Colour-coded enemy legend
-  const legend = [
-    { color: '#ff4444', label: 'Grunt  — 40 HP  · 10 pts' },
-    { color: '#ff8822', label: 'Fast   — 20 HP  · 20 pts' },
-    { color: '#aa44ff', label: 'Tank   — 120 HP · 50 pts' },
+  ctx.fillStyle = '#44aaff'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('HOW TO PLAY', lx + lw/2, ly + 20);
+  ctx.strokeStyle = '#1e3a5f'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(lx+8, ly+28); ctx.lineTo(lx+lw-8, ly+28); ctx.stroke();
+
+  // Controls table
+  const controls = [
+    ['WASD / Arrows', 'Move'],
+    ['Mouse',         'Aim'],
+    ['Left Click',    'Shoot'],
+    ['Enter',         'Start / Restart'],
+    ['Esc',           'Menu'],
   ];
-  legend.forEach(({ color, label }, i) => {
-    ctx.fillStyle = color; ctx.font = '13px monospace';
-    ctx.fillText(label, W/2, 210 + i * 24);
+  ctx.font = '12px monospace'; ctx.textAlign = 'left';
+  controls.forEach(([key, action], i) => {
+    const cy = ly + 48 + i * 22;
+    ctx.fillStyle = '#ffee44';
+    ctx.fillText(key, lx + 14, cy);
+    ctx.fillStyle = '#88aabb';
+    ctx.fillText(action, lx + 160, cy);
   });
 
+  // Enemy legend with mini shapes
+  ctx.fillStyle = '#44aaff'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('ENEMIES', lx + lw/2, ly + 168);
+  ctx.strokeStyle = '#1e3a5f'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(lx+8, ly+176); ctx.lineTo(lx+lw-8, ly+176); ctx.stroke();
+
+  const enemyRows = [
+    { type:'grunt', color:'#ff4444', color2:'#ff8888', r:10, label:'Grunt  — 40 HP  · 10 pts' },
+    { type:'fast',  color:'#ff8822', color2:'#ffaa66', r:8,  label:'Fast   — 20 HP  · 20 pts' },
+    { type:'tank',  color:'#aa44ff', color2:'#cc88ff', r:13, label:'Tank   — 120 HP · 50 pts' },
+  ];
+  enemyRows.forEach(({ type, color, color2, r, label }, i) => {
+    const ey = ly + 200 + i * 44;
+    const ex = lx + 26;
+    ctx.save();
+    ctx.translate(ex, ey);
+    if (type === 'grunt') {
+      ctx.beginPath(); ctx.moveTo(r,0); ctx.lineTo(-r*0.7,-r*0.75); ctx.lineTo(-r*0.7,r*0.75); ctx.closePath();
+      ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = color2; ctx.lineWidth = 1.5; ctx.stroke();
+    } else if (type === 'fast') {
+      ctx.beginPath(); ctx.moveTo(r,0); ctx.lineTo(0,r); ctx.lineTo(-r,0); ctx.lineTo(0,-r); ctx.closePath();
+      ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = color2; ctx.lineWidth = 1.5; ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2);
+      ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = color2; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,0,r*0.5,0,Math.PI*2);
+      ctx.strokeStyle = color2; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = color; ctx.font = '12px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(label, ex + 22, ey + 5);
+  });
+
+  // ── Right panel: leaderboard ──
+  drawLeaderboardPanel(440, 94, 342, 'HALL OF FAME', 7, -1);
+
+  // Blinking start prompt
   if (Math.floor(Date.now() / 500) % 2 === 0) {
-    ctx.fillStyle = '#ffee44'; ctx.font = 'bold 20px monospace';
-    ctx.fillText('Click canvas or press Enter to Start', W/2, 310);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#ffee44'; ctx.shadowBlur = 12;
+    ctx.fillStyle = '#ffee44'; ctx.font = 'bold 19px monospace';
+    ctx.fillText('▶  Click or press Enter to Start  ◀', W/2, 480);
+    ctx.restore();
   }
 
-  // Settings hint
-  ctx.fillStyle = '#334455'; ctx.font = '11px monospace';
-  ctx.fillText('Customize name · background · difficulty · color below', W/2, 355);
-
+  ctx.fillStyle = '#2a3344'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('Customize name · background · difficulty · color below', W/2, 500);
   ctx.textAlign = 'left';
 }
 
@@ -898,28 +1146,74 @@ function drawGameOver() {
   ctx.fillStyle = 'rgba(0,0,0,0.75)';
   ctx.fillRect(0, 0, W, H);
 
+  // Glowing GAME OVER title
+  ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#ff4444'; ctx.font = 'bold 54px monospace';
-  ctx.fillText('GAME OVER', W/2, 160);
+  ctx.shadowColor = '#ff4444'; ctx.shadowBlur = 28;
+  ctx.fillStyle = '#ff4444'; ctx.font = 'bold 52px monospace';
+  ctx.fillText('GAME OVER', W/2, 58);
+  ctx.restore();
 
-  ctx.fillStyle = settings.playerColor; ctx.font = '16px monospace';
-  ctx.fillText(settings.name, W/2, 200);
+  ctx.fillStyle = settings.playerColor; ctx.font = '14px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(settings.name, W/2, 76);
 
-  ctx.fillStyle = '#ffffff'; ctx.font = '22px monospace';
-  ctx.fillText(`Final Score:     ${finalScore}`, W/2, 255);
-  ctx.fillText(`Waves Survived:  ${waveNumber}`, W/2, 290);
+  // 2×2 stats grid panel
+  const gx = W/2 - 200, gy = 86, gw = 400, gh = 110;
+  ctx.save();
+  roundRect(gx, gy, gw, gh, 8);
+  ctx.fillStyle = 'rgba(5,10,30,0.90)'; ctx.fill();
+  ctx.strokeStyle = '#1e3a5f'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.restore();
 
   const dc = { easy: '#44ff88', normal: '#44aaff', hard: '#ff4444' }[settings.difficulty];
-  ctx.fillStyle = dc; ctx.font = '14px monospace';
-  ctx.fillText(`Difficulty: ${settings.difficulty.toUpperCase()}`, W/2, 325);
+  const statsGrid = [
+    { label: 'SCORE',      value: finalScore.toString(),            color: '#ffee44', cx: gx + gw*0.25 },
+    { label: 'WAVES',      value: waveNumber.toString(),            color: '#aaaacc', cx: gx + gw*0.75 },
+    { label: 'KILLS',      value: killCount.toString(),             color: '#44ff88', cx: gx + gw*0.25 },
+    { label: 'DIFFICULTY', value: settings.difficulty.toUpperCase(), color: dc,       cx: gx + gw*0.75 },
+  ];
+  statsGrid.forEach(({ label, value, color, cx }, i) => {
+    const row = Math.floor(i / 2);
+    const sy = gy + 30 + row * 54;
+    ctx.fillStyle = '#445566'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(label, cx, sy);
+    ctx.fillStyle = color; ctx.font = 'bold 20px monospace';
+    ctx.fillText(value, cx, sy + 22);
+  });
 
-  if (Math.floor(Date.now() / 500) % 2 === 0) {
-    ctx.fillStyle = '#ffee44'; ctx.font = 'bold 20px monospace';
-    ctx.fillText('Click canvas or Enter — Play Again', W/2, 390);
+  // Rank badge
+  const badgeY = 210;
+  if (playerRank >= 0) {
+    const pulse = 0.85 + 0.15 * Math.sin(Date.now() / 300);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.textAlign = 'center';
+    if (playerRank === 0) {
+      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 20;
+      ctx.fillStyle = '#ffd700'; ctx.font = 'bold 20px monospace';
+      ctx.fillText('★  NEW RECORD!  ★', W/2, badgeY);
+    } else {
+      ctx.shadowColor = rankColor(playerRank); ctx.shadowBlur = 14;
+      ctx.fillStyle = rankColor(playerRank); ctx.font = 'bold 18px monospace';
+      ctx.fillText(`RANK #${playerRank + 1} ALL TIME`, W/2, badgeY);
+    }
+    ctx.restore();
   }
-  ctx.fillStyle = '#334455'; ctx.font = '12px monospace';
-  ctx.fillText('Esc — Return to Menu', W/2, 420);
 
+  // Leaderboard panel
+  drawLeaderboardPanel(W/2 - 200, 222, 400, 'LEADERBOARD', 6, playerRank);
+
+  // Prompt + hint
+  if (Math.floor(Date.now() / 500) % 2 === 0) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#ffee44'; ctx.shadowBlur = 10;
+    ctx.fillStyle = '#ffee44'; ctx.font = 'bold 18px monospace';
+    ctx.fillText('Click or Enter — Play Again', W/2, 530);
+    ctx.restore();
+  }
+  ctx.fillStyle = '#334455'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('Esc — Return to Menu', W/2, 552);
   ctx.textAlign = 'left';
 }
 
@@ -943,6 +1237,7 @@ function gameLoop(ts) {
     updateEnemies(dt);
     handleCollisions();
     updateParticles(dt);
+    updateScorePopups(dt);
     updateWaves(dt);
 
     let sx = 0, sy = 0;
@@ -958,6 +1253,7 @@ function gameLoop(ts) {
     for (const b of bullets) drawBullet(b);
     for (const e of enemies) drawEnemy(e);
     drawPlayer();
+    drawScorePopups();
     ctx.restore();
     drawHUD();
   } else if (state === STATE.GAME_OVER) {
