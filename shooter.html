@@ -404,14 +404,14 @@ function loadSettings() {
   applySettingsToUI();
 }
 
-// apply persisted settings on load
-loadSettings();
-
 // ============================================================
 // AUDIO  (Web Audio API — fully procedural, no files)
 // ============================================================
 let audioCtx  = null;
 let masterGain = null;
+
+// apply persisted settings on load (after masterGain is declared to avoid TDZ error)
+loadSettings();
 
 function ac() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
