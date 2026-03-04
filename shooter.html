@@ -26,7 +26,7 @@
     border-top: 1px solid #1e2d4a;
     padding: 10px 18px 12px;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(7, 1fr);
     gap: 6px 18px;
     color: #7a8faa;
     font: 12px/1.4 monospace;
@@ -146,6 +146,21 @@
   }
   .swatch:hover { transform: scale(1.15); }
   .swatch.active { border-color: #fff; }
+
+  /* Icon buttons */
+  .icon-btn {
+    flex: 1;
+    background: #07091a;
+    border: 1px solid #1e2d40;
+    border-radius: 3px;
+    color: #556677;
+    font: 14px monospace;
+    padding: 4px 0;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .icon-btn:hover { background: #0f1225; color: #99aacc; }
+  .icon-btn.active { background: #0c2245; border-color: #44aaff; color: #cce4ff; }
 </style>
 </head>
 <body>
@@ -216,6 +231,18 @@
       ⛶ Fullscreen
     </button>
   </div>
+
+  <!-- 7: Player Icon -->
+  <div class="srow">
+    <span class="slabel">Icon</span>
+    <div class="diff-btns" id="icon-btns">
+      <button class="icon-btn active" data-icon="circle">●</button>
+      <button class="icon-btn" data-icon="triangle">▲</button>
+      <button class="icon-btn" data-icon="diamond">◆</button>
+      <button class="icon-btn" data-icon="square">■</button>
+      <button class="icon-btn" data-icon="star">★</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -259,6 +286,7 @@ const settings = {
   difficulty:   'normal',
   playerColor:  '#44aaff',
   moveMode:     'keyboard',
+  playerIcon:   'circle',
 };
 
 const DIFF_PARAMS = {
@@ -270,24 +298,29 @@ const DIFF_PARAMS = {
 // Wire settings UI
 document.getElementById('player-name').addEventListener('input', e => {
   settings.name = e.target.value.trim() || 'Player';
+  saveSettings();
 });
 document.getElementById('bg-select').addEventListener('change', e => {
   settings.bg = e.target.value;
+  saveSettings();
 });
 document.getElementById('volume-slider').addEventListener('input', e => {
   settings.volume = e.target.value / 100;
   document.getElementById('volume-val').textContent = e.target.value + '%';
   if (masterGain) masterGain.gain.value = settings.volume;
+  saveSettings();
 });
 document.getElementById('sound-toggle').addEventListener('change', e => {
   settings.soundEnabled = e.target.checked;
   document.getElementById('sound-label').textContent = e.target.checked ? 'Enabled' : 'Disabled';
+  saveSettings();
 });
 document.querySelectorAll('.diff-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     settings.difficulty = btn.dataset.diff;
+    saveSettings();
   });
 });
 document.querySelectorAll('.swatch').forEach(sw => {
@@ -295,6 +328,7 @@ document.querySelectorAll('.swatch').forEach(sw => {
     document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
     sw.classList.add('active');
     settings.playerColor = sw.dataset.color;
+    saveSettings();
   });
 });
 document.querySelectorAll('.move-btn').forEach(btn => {
@@ -302,9 +336,76 @@ document.querySelectorAll('.move-btn').forEach(btn => {
     document.querySelectorAll('.move-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     settings.moveMode = btn.dataset.mode;
+    saveSettings();
   });
 });
 document.getElementById('fs-btn').addEventListener('click', toggleFullscreen);
+document.querySelectorAll('.icon-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.icon-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    settings.playerIcon = btn.dataset.icon;
+    saveSettings();
+  });
+});
+
+// ============================================================
+// SETTINGS PERSISTENCE (save/load)
+// ============================================================
+const SETTINGS_KEY = 'tds_settings_v1';
+
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+  catch (e) { /* ignore */ }
+}
+
+function applySettingsToUI() {
+  const nameEl = document.getElementById('player-name');
+  const bgEl   = document.getElementById('bg-select');
+  const volEl  = document.getElementById('volume-slider');
+  const volVal = document.getElementById('volume-val');
+  const soundT = document.getElementById('sound-toggle');
+
+  if (nameEl) nameEl.value = settings.name;
+  if (bgEl) bgEl.value = settings.bg;
+  if (volEl) {
+    volEl.value = Math.round((settings.volume || 0) * 100);
+    if (volVal) volVal.textContent = Math.round((settings.volume || 0) * 100) + '%';
+    if (masterGain) masterGain.gain.value = settings.volume;
+  }
+  if (soundT) {
+    soundT.checked = !!settings.soundEnabled;
+    const lbl = document.getElementById('sound-label');
+    if (lbl) lbl.textContent = soundT.checked ? 'Enabled' : 'Disabled';
+  }
+
+  document.querySelectorAll('.diff-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.diff === settings.difficulty);
+  });
+  document.querySelectorAll('.swatch').forEach(sw => {
+    sw.classList.toggle('active', sw.dataset.color === settings.playerColor);
+  });
+  document.querySelectorAll('.move-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === settings.moveMode);
+  });
+  document.querySelectorAll('.icon-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.icon === settings.playerIcon);
+  });
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') Object.assign(settings, obj);
+    }
+  } catch (e) { /* ignore parse errors */ }
+  applySettingsToUI();
+}
+
+// apply persisted settings on load
+loadSettings();
 
 // ============================================================
 // AUDIO  (Web Audio API — fully procedural, no files)
@@ -843,7 +944,28 @@ function drawPlayer() {
   ctx.fillStyle = darken(c, 0.5);
   ctx.fillRect(8, -4, 18, 8);
   // body
-  ctx.beginPath(); ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
+  const r = player.radius;
+  ctx.beginPath();
+  switch (settings.playerIcon) {
+    case 'triangle':
+      ctx.moveTo(r, 0); ctx.lineTo(-r*0.8, -r*0.85); ctx.lineTo(-r*0.8, r*0.85);
+      ctx.closePath(); break;
+    case 'diamond':
+      ctx.moveTo(r, 0); ctx.lineTo(0, r); ctx.lineTo(-r, 0); ctx.lineTo(0, -r);
+      ctx.closePath(); break;
+    case 'square':
+      ctx.rect(-r*0.85, -r*0.85, r*1.7, r*1.7); break;
+    case 'star':
+      for (let i = 0; i < 10; i++) {
+        const ang = (i * Math.PI) / 5 - Math.PI / 2;
+        const rad = i % 2 === 0 ? r : r * 0.45;
+        i === 0 ? ctx.moveTo(Math.cos(ang)*rad, Math.sin(ang)*rad)
+                : ctx.lineTo(Math.cos(ang)*rad, Math.sin(ang)*rad);
+      }
+      ctx.closePath(); break;
+    default: // circle
+      ctx.arc(0, 0, r, 0, Math.PI * 2); break;
+  }
   ctx.fillStyle = c; ctx.fill();
   ctx.strokeStyle = c2; ctx.lineWidth = 2; ctx.stroke();
   ctx.restore();
