@@ -55,26 +55,26 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 
 The entire game is one self-contained file (`shooter.html`) with no external dependencies. All logic, styles, and markup are inline. The script section is divided into clearly labelled comment blocks in this order:
 
-1. **SETUP** — Canvas context (`ctx`), constants `W=800 H=600`
-2. **SETTINGS** — `settings` object + UI event wiring for the bottom panel
+1. **SETUP** — Canvas context (`ctx`), constants `W=800 H=600`; `resizeCanvas()` (CSS `scale` transform to fill viewport, scales settings panel too), `toggleFullscreen()` (Fullscreen API wrapper); `resize` + `fullscreenchange` listeners; `resizeCanvas()` called once at startup
+2. **SETTINGS** — `settings` object (including `moveMode: 'keyboard'|'mouse'`) + UI event wiring for the bottom panel; 6-column CSS grid (added Movement + Fullscreen column)
 3. **AUDIO** — Web Audio API procedural SFX; all sounds synthesised at runtime, routed through a single `masterGain` node
 4. **LEADERBOARD** — `LB_KEY` constant; `getLeaderboard()` (reads localStorage); `saveToLeaderboard(name,score,wave,kills,difficulty)` (push → sort desc → splice(10) → return rank); `rankColor(rank)` / `rankLabel(rank)`; `roundRect(x,y,w,h,r)` path helper; `drawLeaderboardPanel(px,py,pw,title,maxRows,highlightRank)` — rounded bordered panel with RANK/NAME/SCORE/WV/D columns, medal colours, gold-tint on highlighted row
 5. **SCORE POPUPS** — `scorePopups[]`; `spawnScorePopup(x,y,text,color)` pushes `{x,y,text,color,alpha,vy,life}`; `updateScorePopups(dt)` floats up + fades; `drawScorePopups()` bold 15px monospace with shadow glow
-6. **GAME STATE** — `STATE` enum (`MENU=0 PLAYING=1 GAME_OVER=2`), `state` variable; `killCount`, `playerRank`, `waveEnemiesTotal` let declarations
-7. **INPUT** — `keys{}` map (keydown/keyup) + `mouse{x,y,held}` (mousemove/down/up)
+6. **GAME STATE** — `STATE` enum (`MENU=0 PLAYING=1 GAME_OVER=2`), `state` variable; `paused` boolean (toggled by `P`, reset in `startGame()`); `killCount`, `playerRank`, `waveEnemiesTotal` let declarations
+7. **INPUT** — `keys{}` map (keydown/keyup) + `mouse{x,y,held}` (mousemove/down/up); mouse coords mapped via `(clientX-r.left)*(W/r.width)` to account for CSS scale; `P` toggles `paused`; `F` calls `toggleFullscreen()`; `Escape` handles both game-over and paused-while-playing states
 8. **BACKGROUND THEMES** — Four renderers (`drawBgGrid`, `drawBgStars`, `drawBgDungeon`, `drawBgNeon`) dispatched by `drawBackground()`
 9. **WAVE DEFS** — `WAVE_DEFS[0..4]` for waves 1–5; `getWaveDef(n)` returns infinite-scaling config beyond wave 5
 10. **ENTITY DEFS** — `ENEMY_DEF` lookup table with base stats for `grunt/fast/tank`
-11. **GAME INIT** — `startGame()` resets all state (including `killCount=0 playerRank=-1 scorePopups=[]`) and reads `DIFF_PARAMS[difficulty]`; `startNextWave()` sets `waveEnemiesTotal`; `endGame()` calls `saveToLeaderboard()` and stores rank in `playerRank`
-12. **PLAYER** — `updatePlayer(dt)`, `firePlayerBullet()`, `drawPlayer()`; colour helpers `darken()` / `blendWhite()`
+11. **GAME INIT** — `startGame()` resets all state (including `paused=false killCount=0 playerRank=-1 scorePopups=[]`) and reads `DIFF_PARAMS[difficulty]`; `startNextWave()` sets `waveEnemiesTotal`; `endGame()` calls `saveToLeaderboard()` and stores rank in `playerRank`
+12. **PLAYER** — `updatePlayer(dt)` branches on `settings.moveMode`: keyboard mode uses WASD/Arrows with diagonal normalisation; mouse mode moves player toward cursor (stops within 6 px); both modes aim via `Math.atan2`; `firePlayerBullet()`, `drawPlayer()`; colour helpers `darken()` / `blendWhite()`
 13. **ENEMIES** — `spawnEnemy(type)` picks a random screen edge; `updateEnemies(dt)` homes toward player; `drawEnemy(e)` switches on `e.type`
 14. **BULLETS** — Array of `{x,y,vx,vy,owner,radius,lifetime,damage}`; bullets are filtered out when `lifetime ≤ 0` or off-screen
 15. **PARTICLES** — Simple alpha-decay system; spawned on shoot, hit, and death events
 16. **COLLISION** — `circleCollide(a,b)` checks `dist² < (ra+rb)²`; `handleCollisions()` iterates bullets→enemies then enemies→player; increments `killCount` on enemy death; calls `spawnScorePopup()` with enemy point value
 17. **WAVE MANAGER** — `updateWaves(dt)` drives spawn timer and transitions to `waveClearing` once all queued enemies are spawned and dead
 18. **HUD** — Drawn after `ctx.restore()` so it is never offset by screen shake; includes semi-transparent backing panels, kill counter (top-right below score), thin wave progress bar (under wave counter, fills as enemies die), `shadowBlur` glow on wave banner
-19. **SCREENS** — `drawMenu()` has two-panel layout (left: controls + mini enemy shapes; right: HALL OF FAME leaderboard); `drawGameOver()` has 2×2 stats grid (Score/Waves/Kills/Difficulty), pulsing rank badge, embedded LEADERBOARD with player row highlighted
-20. **GAME LOOP** — `requestAnimationFrame` loop; `dt` capped at 100 ms to prevent tunnelling after tab-switch
+19. **SCREENS** — `drawMenu()` has two-panel layout (left: controls + mini enemy shapes; right: HALL OF FAME leaderboard); `drawGameOver()` has 2×2 stats grid (Score/Waves/Kills/Difficulty), pulsing rank badge, embedded LEADERBOARD with player row highlighted; `drawPauseOverlay()` draws semi-transparent black veil + "PAUSED" glow text + resume hint
+20. **GAME LOOP** — `requestAnimationFrame` loop; `dt` capped at 100 ms to prevent tunnelling after tab-switch; all update calls wrapped in `if (!paused)`; `drawPauseOverlay()` called after HUD when paused
 
 ## Key Data Flows
 

@@ -26,7 +26,7 @@
     border-top: 1px solid #1e2d4a;
     padding: 10px 18px 12px;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 6px 18px;
     color: #7a8faa;
     font: 12px/1.4 monospace;
@@ -88,6 +88,21 @@
   .diff-btn.active                   { background: #0c2245; border-color: #44aaff; color: #cce4ff; }
   .diff-btn[data-diff="easy"].active { background: #0a2818; border-color: #44ff88; color: #aaffe0; }
   .diff-btn[data-diff="hard"].active { background: #2a0d0d; border-color: #ff4444; color: #ffaaaa; }
+
+  /* Move-mode buttons (same style as diff buttons) */
+  .move-btn {
+    flex: 1;
+    background: #07091a;
+    border: 1px solid #1e2d40;
+    border-radius: 3px;
+    color: #556677;
+    font: 11px monospace;
+    padding: 5px 0;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .move-btn:hover { background: #0f1225; color: #99aacc; }
+  .move-btn.active { background: #0c2245; border-color: #44aaff; color: #cce4ff; }
 
   /* Volume */
   .vol-row { display: flex; align-items: center; gap: 6px; }
@@ -189,6 +204,18 @@
       <div class="swatch"        data-color="#cc88ff" style="background:#cc88ff;"></div>
     </div>
   </div>
+
+  <!-- 6: Movement + Fullscreen -->
+  <div class="srow">
+    <span class="slabel">Movement</span>
+    <div class="diff-btns">
+      <button class="move-btn active" data-mode="keyboard">Keys</button>
+      <button class="move-btn"        data-mode="mouse">Mouse</button>
+    </div>
+    <button id="fs-btn" style="margin-top:6px;width:100%;background:#07091a;border:1px solid #1e2d40;border-radius:3px;color:#7a9abb;font:11px monospace;padding:5px 0;cursor:pointer;">
+      ⛶ Fullscreen
+    </button>
+  </div>
 </div>
 
 <script>
@@ -203,6 +230,24 @@ canvas.height = H;
 
 const settingsEl = document.getElementById('settings-panel');
 
+function resizeCanvas() {
+  const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.style.transform = `scale(${scale})`;
+  canvas.style.transformOrigin = 'center center';
+  settingsEl.style.transformOrigin = 'bottom center';
+  settingsEl.style.transform = `translateX(-50%) scale(${scale})`;
+}
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+}
+window.addEventListener('resize', resizeCanvas);
+document.addEventListener('fullscreenchange', resizeCanvas);
+resizeCanvas();
+
 // ============================================================
 // SETTINGS
 // ============================================================
@@ -213,6 +258,7 @@ const settings = {
   soundEnabled: true,
   difficulty:   'normal',
   playerColor:  '#44aaff',
+  moveMode:     'keyboard',
 };
 
 const DIFF_PARAMS = {
@@ -251,6 +297,14 @@ document.querySelectorAll('.swatch').forEach(sw => {
     settings.playerColor = sw.dataset.color;
   });
 });
+document.querySelectorAll('.move-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.move-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    settings.moveMode = btn.dataset.mode;
+  });
+});
+document.getElementById('fs-btn').addEventListener('click', toggleFullscreen);
 
 // ============================================================
 // AUDIO  (Web Audio API — fully procedural, no files)
@@ -510,6 +564,7 @@ function drawLeaderboardPanel(px, py, pw, title, maxRows, highlightRank) {
 // ============================================================
 const STATE = { MENU: 0, PLAYING: 1, GAME_OVER: 2 };
 let state = STATE.MENU;
+let paused = false;
 
 // ============================================================
 // INPUT
@@ -523,16 +578,21 @@ document.addEventListener('keydown', e => {
     if (state === STATE.MENU)      startGame();
     if (state === STATE.GAME_OVER) startGame();
   }
-  if (e.code === 'Escape' && state === STATE.GAME_OVER) {
+  if (e.code === 'Escape' && (state === STATE.GAME_OVER || (state === STATE.PLAYING && paused))) {
+    paused = false;
     state = STATE.MENU;
   }
+  if (e.code === 'KeyP' && state === STATE.PLAYING) {
+    paused = !paused;
+  }
+  if (e.code === 'KeyF') toggleFullscreen();
 });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
 
 canvas.addEventListener('mousemove', e => {
   const r = canvas.getBoundingClientRect();
-  mouse.x = e.clientX - r.left;
-  mouse.y = e.clientY - r.top;
+  mouse.x = (e.clientX - r.left) * (W / r.width);
+  mouse.y = (e.clientY - r.top)  * (H / r.height);
 });
 canvas.addEventListener('mousedown', () => {
   mouse.held = true;
@@ -689,6 +749,7 @@ let waveEnemiesTotal;
 function startGame() {
   const diff = DIFF_PARAMS[settings.difficulty];
   state       = STATE.PLAYING;
+  paused      = false;
   score       = 0;
   waveNumber  = 0;
   screenShake = 0;
@@ -737,11 +798,17 @@ function endGame() {
 // ============================================================
 function updatePlayer(dt) {
   let dx = 0, dy = 0;
-  if (keys['KeyW'] || keys['ArrowUp'])    dy -= 1;
-  if (keys['KeyS'] || keys['ArrowDown'])  dy += 1;
-  if (keys['KeyA'] || keys['ArrowLeft'])  dx -= 1;
-  if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
-  if (dx && dy) { dx *= 0.7071; dy *= 0.7071; }
+  if (settings.moveMode === 'keyboard') {
+    if (keys['KeyW'] || keys['ArrowUp'])    dy -= 1;
+    if (keys['KeyS'] || keys['ArrowDown'])  dy += 1;
+    if (keys['KeyA'] || keys['ArrowLeft'])  dx -= 1;
+    if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+    if (dx && dy) { dx *= 0.7071; dy *= 0.7071; }
+  } else {
+    const mdx = mouse.x - player.x, mdy = mouse.y - player.y;
+    const dist = Math.hypot(mdx, mdy);
+    if (dist > 6) { dx = mdx / dist; dy = mdy / dist; }
+  }
 
   player.x = Math.max(player.radius, Math.min(W - player.radius, player.x + dx * player.speed * dt));
   player.y = Math.max(player.radius, Math.min(H - player.radius, player.y + dy * player.speed * dt));
@@ -1075,10 +1142,12 @@ function drawMenu() {
 
   // Controls table
   const controls = [
-    ['WASD / Arrows', 'Move'],
+    ['WASD / Arrows', 'Move (keyboard mode)'],
     ['Mouse',         'Aim'],
     ['Left Click',    'Shoot'],
     ['Enter',         'Start / Restart'],
+    ['P',             'Pause / Resume'],
+    ['F',             'Fullscreen'],
     ['Esc',           'Menu'],
   ];
   ctx.font = '12px monospace'; ctx.textAlign = 'left';
@@ -1217,6 +1286,20 @@ function drawGameOver() {
   ctx.textAlign = 'left';
 }
 
+function drawPauseOverlay() {
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#44aaff'; ctx.shadowBlur = 18;
+  ctx.fillStyle = '#cce4ff'; ctx.font = 'bold 52px monospace';
+  ctx.fillText('PAUSED', W/2, H/2 - 18);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#5577aa'; ctx.font = '18px monospace';
+  ctx.fillText('P  to resume  ·  Esc to quit to menu', W/2, H/2 + 28);
+  ctx.restore();
+}
+
 // ============================================================
 // MAIN GAME LOOP
 // ============================================================
@@ -1232,13 +1315,15 @@ function gameLoop(ts) {
     drawMenu();
   } else if (state === STATE.PLAYING) {
     settingsEl.classList.add('hidden');
-    updatePlayer(dt);
-    updateBullets(dt);
-    updateEnemies(dt);
-    handleCollisions();
-    updateParticles(dt);
-    updateScorePopups(dt);
-    updateWaves(dt);
+    if (!paused) {
+      updatePlayer(dt);
+      updateBullets(dt);
+      updateEnemies(dt);
+      handleCollisions();
+      updateParticles(dt);
+      updateScorePopups(dt);
+      updateWaves(dt);
+    }
 
     let sx = 0, sy = 0;
     if (screenShake > 0) {
@@ -1256,6 +1341,7 @@ function gameLoop(ts) {
     drawScorePopups();
     ctx.restore();
     drawHUD();
+    if (paused) drawPauseOverlay();
   } else if (state === STATE.GAME_OVER) {
     settingsEl.classList.add('hidden');
     drawGameOver();

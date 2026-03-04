@@ -34,7 +34,10 @@ A browser-based top-down shooter built entirely in a single HTML file — no fra
 - **Particle system** — bullet muzzle flash, enemy death explosions, player hit sparks
 - **Screen shake** on player damage
 - **Invincibility frames** after being hit (duration varies by difficulty)
-- **Settings panel** — name, background theme, difficulty, volume, sound toggle, player colour
+- **Pause / Resume** — press `P` to freeze the game mid-wave; press `P` again or `Esc` to return to menu
+- **Mouse movement mode** — switch in the settings panel between keyboard (WASD) and mouse-follow movement
+- **Fullscreen + responsive scaling** — press `F` or click the Fullscreen button; canvas CSS-scales to fill any screen or device
+- **Settings panel** — name, background theme, difficulty, volume, sound toggle, player colour, movement mode
 - **HUD** — colour-coded health bar, score, kill counter, wave counter with progress bar, enemy count, animated wave banner with glow
 - **localStorage leaderboard** — top-10 scores persisted across sessions; visible as "HALL OF FAME" on the menu and "LEADERBOARD" on the game-over screen
 - **Score popups** — floating `+N` text rises from each enemy kill (colour-coded by enemy type)
@@ -61,16 +64,19 @@ No server, build step, or installation required.
 
 | Input | Action |
 |-------|--------|
-| `W` / `↑` | Move up |
-| `S` / `↓` | Move down |
-| `A` / `←` | Move left |
-| `D` / `→` | Move right |
-| **Mouse** | Aim |
+| `W` / `↑` | Move up (keyboard mode) |
+| `S` / `↓` | Move down (keyboard mode) |
+| `A` / `←` | Move left (keyboard mode) |
+| `D` / `→` | Move right (keyboard mode) |
+| **Mouse** | Aim; move toward cursor (mouse mode) |
 | **Hold left click** | Fire (continuous, ~6-7 shots/sec) |
 | **Enter** | Start game / Restart after game over |
-| **Esc** | Return to menu (from game over screen) |
+| `P` | Pause / Resume |
+| `F` | Toggle fullscreen |
+| **Esc** | Return to menu (from game over or while paused) |
 
-> Movement is diagonal-corrected: holding two directions simultaneously normalises speed so you don't move faster diagonally.
+> Keyboard movement is diagonal-corrected: holding two directions simultaneously normalises speed so you don't move faster diagonally.
+> In mouse movement mode the player smoothly follows the cursor; aiming and shooting still track the cursor position.
 
 ---
 
@@ -150,6 +156,7 @@ The panel is visible on the menu screen and hidden during gameplay. All settings
 | **Volume** | 0 – 100 % slider | 70 % |
 | **Sound** | Toggle on/off | On |
 | **Player Colour** | Blue, Green, Yellow, Pink, Purple | Blue (`#44aaff`) |
+| **Movement** | Keys (WASD), Mouse (follow cursor) | Keys |
 
 ---
 
