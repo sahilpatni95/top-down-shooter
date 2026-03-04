@@ -13,6 +13,7 @@ A browser-based top-down shooter built entirely in a single HTML file — no fra
 - [Controls](#controls)
 - [Enemy Types](#enemy-types)
 - [Wave System](#wave-system)
+- [Leaderboard](#leaderboard)
 - [Difficulty Modes](#difficulty-modes)
 - [Settings Panel](#settings-panel)
 - [Background Themes](#background-themes)
@@ -34,7 +35,13 @@ A browser-based top-down shooter built entirely in a single HTML file — no fra
 - **Screen shake** on player damage
 - **Invincibility frames** after being hit (duration varies by difficulty)
 - **Settings panel** — name, background theme, difficulty, volume, sound toggle, player colour
-- **HUD** — colour-coded health bar, score, wave counter, enemy count, animated wave banner
+- **HUD** — colour-coded health bar, score, kill counter, wave counter with progress bar, enemy count, animated wave banner with glow
+- **localStorage leaderboard** — top-10 scores persisted across sessions; visible as "HALL OF FAME" on the menu and "LEADERBOARD" on the game-over screen
+- **Score popups** — floating `+N` text rises from each enemy kill (colour-coded by enemy type)
+- **Kill counter** — tracks total kills per run; shown in HUD top-right and on the game-over stats panel
+- **Wave progress bar** — thin bar under the wave counter fills as enemies in the current wave are eliminated
+- **Redesigned menu** — two-panel layout: controls reference (left) + HALL OF FAME leaderboard (right)
+- **Redesigned game-over** — 2×2 stats grid (Score/Waves/Kills/Difficulty) + pulsing rank badge + embedded leaderboard with player's row highlighted
 
 ---
 
@@ -95,6 +102,24 @@ No server, build step, or installation required.
 - A new wave starts only after all enemies from the previous wave are dead
 - An animated **WAVE N** banner fades in and out at each wave transition
 - Beyond wave 5 the game scales infinitely — more enemies spawn faster with each wave
+
+---
+
+## Leaderboard
+
+Scores are persisted in `localStorage` under the key `tds_leaderboard_v1` as a JSON array of up to 10 entries, sorted by score descending.
+
+| Column | Description |
+|--------|-------------|
+| Rank   | Medal icon: gold (#1), silver (#2), bronze (#3), grey (#4–#10) |
+| Name   | Player name from the settings panel (truncated to 7 chars) |
+| Score  | Final score at time of death |
+| WV     | Wave number reached |
+| D      | Difficulty initial: E / N / H |
+
+- On game over, your row is **highlighted in gold** and a rank badge pulses ("NEW RECORD!" for rank #1)
+- The leaderboard is visible on both the **menu** (HALL OF FAME, top 7) and **game-over** (LEADERBOARD, top 6) screens
+- Clear via DevTools → Application → Local Storage → delete `tds_leaderboard_v1`
 
 ---
 
@@ -190,20 +215,22 @@ shooter.html
     ├── SETUP        — Canvas context, constants
     ├── SETTINGS     — Settings object + UI event wiring
     ├── AUDIO        — Web Audio API procedural SFX
-    ├── GAME STATE   — State machine (MENU / PLAYING / GAME_OVER)
+    ├── LEADERBOARD  — localStorage persistence, rankColor/rankLabel, drawLeaderboardPanel
+    ├── SCORE POPUPS — floating kill-reward text system
+    ├── GAME STATE   — State machine (MENU / PLAYING / GAME_OVER), killCount, playerRank
     ├── INPUT        — Keyboard and mouse handlers
     ├── BACKGROUNDS  — Four theme renderers
     ├── WAVE DEFS    — Wave progression table + infinite scaler
     ├── ENTITY DEFS  — Enemy base stats
-    ├── GAME INIT    — startGame / startNextWave / endGame
+    ├── GAME INIT    — startGame (resets killCount/playerRank/scorePopups) / startNextWave (sets waveEnemiesTotal) / endGame (saves to leaderboard)
     ├── PLAYER       — Update, fire, draw, colour helpers
     ├── ENEMIES      — Spawn, update, draw (3 shapes + HP bar)
     ├── BULLETS      — Update, draw (glow via shadowBlur)
     ├── PARTICLES    — Spawn, update, draw
-    ├── COLLISION    — Circle-circle detection, damage, death
+    ├── COLLISION    — Circle-circle detection, damage, death, kill counting, score popups
     ├── WAVE MANAGER — Spawn timer, clearing logic
-    ├── HUD          — HP bar, score, wave counter, banner
-    ├── SCREENS      — Menu and Game Over renderers
+    ├── HUD          — HP bar, score, kill counter, wave counter + progress bar, banner with glow
+    ├── SCREENS      — Menu (two-panel: controls + HALL OF FAME) and Game Over (stats grid + rank badge + leaderboard)
     └── GAME LOOP    — requestAnimationFrame loop with deltaTime cap
 ```
 
