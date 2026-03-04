@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository
 
-Single-game repository tracked on GitHub at `https://github.com/sahilpatni95/top-down-shooter`. Only `shooter.html` and `.gitignore` are tracked — `tictactoe.html` is excluded via `.gitignore`.
+Repository tracked on GitHub at `https://github.com/sahilpatni95/top-down-shooter`. Tracked files: `shooter.html`, `tictactoe.html`, `README.md`, `CLAUDE.md`, `.gitignore`.
 
 ## Running the Game
 
@@ -21,15 +21,33 @@ python -m http.server 8080
 
 ## Committing Changes
 
-Every change to `shooter.html` follows this workflow:
+**After every meaningful unit of work, commit and push immediately.** Do not batch multiple unrelated changes into one commit. This ensures no work is ever lost and the GitHub remote always reflects the current state.
 
 ```bash
-git add shooter.html
+git add <changed-files>
 git commit -m "<type>: <description>"
 git push
 ```
 
 Commit type prefixes: `feat:` · `fix:` · `style:` · `refactor:` · `chore:`
+
+### When to commit
+
+- After adding or completing a feature
+- After fixing a bug
+- After any edit to a file that leaves the code in a working or clearly improved state
+- After updating documentation or config files (README, CLAUDE.md, .gitignore)
+
+### Commit message rules
+
+- Use the imperative mood in the description (`add`, `fix`, `update`, not `added`, `fixes`)
+- Be specific — describe *what changed and why*, not just *that something changed*
+- Bad: `fix: changes` · Good: `fix: prevent player from moving outside canvas bounds`
+- Always append the co-author trailer:
+
+```
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+```
 
 ## Architecture
 
