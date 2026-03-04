@@ -45,6 +45,7 @@ A browser-based top-down shooter built entirely in a single HTML file — no fra
 - **Wave progress bar** — thin bar under the wave counter fills as enemies in the current wave are eliminated
 - **Redesigned menu** — two-panel layout: controls reference (left) + HALL OF FAME leaderboard (right)
 - **Redesigned game-over** — 2×2 stats grid (Score/Waves/Kills/Difficulty) + pulsing rank badge + embedded leaderboard with player's row highlighted
+- **Mobile & touch support** — viewport meta tag, responsive settings panel (2-col on phones, 4-col on tablets), dual-thumb virtual joystick (left half = move, right half = aim+fire), on-canvas pause button, touch-action:none prevents scroll/zoom
 
 ---
 
@@ -74,6 +75,10 @@ No server, build step, or installation required.
 | `P` | Pause / Resume |
 | `F` | Toggle fullscreen |
 | **Esc** | Return to menu (from game over or while paused) |
+| **Tap canvas** (mobile) | Start game on menu/game-over |
+| **Left thumb drag** (mobile) | Move via virtual joystick |
+| **Right thumb hold** (mobile) | Aim + fire continuously |
+| **Pause button ❚❚** (mobile) | Pause / Resume (top-right corner) |
 
 > Keyboard movement is diagonal-corrected: holding two directions simultaneously normalises speed so you don't move faster diagonally.
 > In mouse movement mode the player smoothly follows the cursor; aiming and shooting still track the cursor position.

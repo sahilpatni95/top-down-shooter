@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Top-Down Shooter</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,7 +14,7 @@
     height: 100vh;
     overflow: hidden;
   }
-  canvas { display: block; cursor: crosshair; }
+  canvas { display: block; cursor: crosshair; touch-action: none; }
 
   /* ── Settings Panel ── */
   #settings-panel {
@@ -146,6 +147,25 @@
   }
   .swatch:hover { transform: scale(1.15); }
   .swatch.active { border-color: #fff; }
+
+  /* Responsive settings panel */
+  @media (max-width: 600px) {
+    #settings-panel {
+      width: 100vw;
+      grid-template-columns: repeat(2, 1fr);
+      max-height: 45vh;
+      overflow-y: auto;
+      padding: 8px 10px;
+      gap: 8px 10px;
+      font-size: 11px;
+    }
+  }
+  @media (min-width: 601px) and (max-width: 900px) {
+    #settings-panel {
+      width: 100vw;
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
 
   /* Icon buttons */
   .icon-btn {
@@ -666,6 +686,7 @@ function drawLeaderboardPanel(px, py, pw, title, maxRows, highlightRank) {
 const STATE = { MENU: 0, PLAYING: 1, GAME_OVER: 2 };
 let state = STATE.MENU;
 let paused = false;
+const joystick = { active: false, startX: 0, startY: 0, dx: 0, dy: 0, startSet: false };
 
 // ============================================================
 // INPUT
@@ -700,6 +721,58 @@ canvas.addEventListener('mousedown', () => {
   if (state === STATE.MENU || state === STATE.GAME_OVER) startGame();
 });
 canvas.addEventListener('mouseup', () => { mouse.held = false; });
+
+function handleTouches(touches) {
+  const r = canvas.getBoundingClientRect();
+  joystick.active = false;
+  mouse.held = false;
+
+  for (const t of touches) {
+    const cx = (t.clientX - r.left) * (W / r.width);
+    const cy = (t.clientY - r.top)  * (H / r.height);
+
+    if (cx < W * 0.45) {
+      // Left zone → joystick
+      if (!joystick.active) {
+        if (!joystick.startSet) { joystick.startX = cx; joystick.startY = cy; joystick.startSet = true; }
+        joystick.dx = cx - joystick.startX;
+        joystick.dy = cy - joystick.startY;
+        joystick.active = true;
+      }
+    } else {
+      // Right zone → aim + fire
+      mouse.x = cx;
+      mouse.y = cy;
+      mouse.held = true;
+    }
+  }
+  if (!joystick.active) joystick.startSet = false;
+}
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  const cx = (t.clientX - r.left) * (W / r.width);
+  const cy = (t.clientY - r.top)  * (H / r.height);
+  mouse.x = cx;
+  mouse.y = cy;
+  if (state === STATE.MENU || state === STATE.GAME_OVER) { startGame(); return; }
+  // Tap pause button (top-right corner)
+  if (state === STATE.PLAYING && cx > W - 50 && cy < 50) { paused = !paused; return; }
+  handleTouches(e.touches);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  handleTouches(e.touches);
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  handleTouches(e.touches);
+  if (e.touches.length === 0) { mouse.held = false; joystick.active = false; joystick.startSet = false; }
+}, { passive: false });
 
 // ============================================================
 // BACKGROUND THEMES
@@ -904,11 +977,22 @@ function updatePlayer(dt) {
     if (keys['KeyS'] || keys['ArrowDown'])  dy += 1;
     if (keys['KeyA'] || keys['ArrowLeft'])  dx -= 1;
     if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+    // Virtual joystick overrides keys on touch
+    if (joystick.active) {
+      const mag = Math.hypot(joystick.dx, joystick.dy);
+      if (mag > 8) { dx = joystick.dx / mag; dy = joystick.dy / mag; }
+    }
     if (dx && dy) { dx *= 0.7071; dy *= 0.7071; }
   } else {
-    const mdx = mouse.x - player.x, mdy = mouse.y - player.y;
-    const dist = Math.hypot(mdx, mdy);
-    if (dist > 6) { dx = mdx / dist; dy = mdy / dist; }
+    if (joystick.active) {
+      // Virtual joystick overrides mouse movement on touch
+      const mag = Math.hypot(joystick.dx, joystick.dy);
+      if (mag > 8) { dx = joystick.dx / mag; dy = joystick.dy / mag; }
+    } else {
+      const mdx = mouse.x - player.x, mdy = mouse.y - player.y;
+      const dist = Math.hypot(mdx, mdy);
+      if (dist > 6) { dx = mdx / dist; dy = mdy / dist; }
+    }
   }
 
   player.x = Math.max(player.radius, Math.min(W - player.radius, player.x + dx * player.speed * dt));
@@ -1226,12 +1310,34 @@ function drawHUD() {
     ctx.fillText(`WAVE ${waveNumber}`, W/2, H/2 + 14);
     ctx.restore();
   }
+
+  // Mobile pause button (top-right tap target)
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(W - 44, 8, 36, 36);
+  ctx.fillStyle = '#aac'; ctx.font = '18px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(paused ? '\u25b6' : '\u275a\u275a', W - 26, 32);
+
   ctx.textAlign = 'left';
 }
 
 // ============================================================
 // SCREENS
 // ============================================================
+function drawJoystick() {
+  if (!joystick.active) return;
+  const baseX = joystick.startX, baseY = joystick.startY;
+  const knobX = baseX + joystick.dx, knobY = baseY + joystick.dy;
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  // outer ring
+  ctx.beginPath(); ctx.arc(baseX, baseY, 50, 0, Math.PI * 2);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  // inner knob
+  ctx.beginPath(); ctx.arc(knobX, knobY, 22, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.restore();
+}
+
 function drawMenu() {
   drawBackground();
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -1463,6 +1569,7 @@ function gameLoop(ts) {
     drawScorePopups();
     ctx.restore();
     drawHUD();
+    if (joystick.active) drawJoystick();
     if (paused) drawPauseOverlay();
   } else if (state === STATE.GAME_OVER) {
     settingsEl.classList.add('hidden');
